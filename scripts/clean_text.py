@@ -40,7 +40,7 @@ def clean_text(text):
         line = line.strip()
 
         # remove very short lines (navigation etc.)
-        if len(line) < 40:
+        if len(line) < 20:
             continue
 
         cleaned_lines.append(line)

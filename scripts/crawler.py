@@ -11,9 +11,25 @@ from pdfminer.high_level import extract_text
 
 seed_urls = [
 
+# Income tax portal
 "https://www.incometax.gov.in/iec/foportal/",
+"https://www.incometax.gov.in/iec/foportal/help/",
+"https://www.incometax.gov.in/iec/foportal/help/individual-business-profession",
+"https://www.incometax.gov.in/iec/foportal/help/non-company/return-applicable",
+"https://www.incometax.gov.in/iec/foportal/help/how-to-file-itr1-form-sahaj",
+
+# Income tax department
 "https://incometaxindia.gov.in/pages/default.aspx",
-"https://incometaxindia.gov.in/pages/acts/income-tax-act.aspx"
+"https://incometaxindia.gov.in/pages/acts/income-tax-act.aspx",
+
+# CBDT
+"https://www.cbdt.gov.in",
+
+# GST
+"https://gst.gov.in",
+
+# CBIC
+"https://www.cbic.gov.in"
 
 ]
 
@@ -21,10 +37,13 @@ seed_urls = [
 
 allowed_domains = [
 "incometax.gov.in",
-"incometaxindia.gov.in"
+"incometaxindia.gov.in",
+"cbic.gov.in",
+"gst.gov.in",
+"cbdt.gov.in"
 ]
 
-max_pages = 300
+max_pages = 1000
 
 tax_keywords = [
 "tax","income","income-tax","taxation","deduction","rebate","refund",
@@ -83,12 +102,18 @@ def valid_url(url):
     return False
 
 def relevant(url):
+
     url_lower = url.lower()
+
+    # allow help and portal pages
+    if "help" in url_lower or "foportal" in url_lower:
+        return True
+
     for word in tax_keywords:
         if word in url_lower:
             return True
-    return False
 
+    return False
 def is_pdf(url):
     return url.lower().endswith(".pdf")
 
@@ -111,7 +136,7 @@ while queue and count < max_pages:
     if url in visited:
         continue
 
-    print("Crawling:", url)
+    print(f"[{count}/{max_pages}] Crawling:", url)
 
     try:
         response = requests.get(url, timeout=10)
@@ -167,8 +192,16 @@ while queue and count < max_pages:
     # remove scripts/styles
     for s in soup(["script","style"]):
         s.extract()
-
     text = soup.get_text(separator="\n")
+    lines = text.split("\n")
+    clean_lines = []
+
+    for line in lines:
+        line = line.strip()
+        if len(line) > 30:
+            clean_lines.append(line)
+
+    text = "\n".join(clean_lines)
 
     new_hash = get_hash(text)
 
@@ -198,7 +231,7 @@ while queue and count < max_pages:
 
     for link in soup.find_all("a", href=True):
 
-        new_url = urljoin(url, link["href"])
+        new_url = urljoin(url, link["href"]).split("#")[0]
 
         if skip_file(new_url):
             continue

@@ -1,154 +1,85 @@
+import os
 import json
-import chromadb
-import ollama
 import re
+import hashlib
 
-# ---------------------------
-# SETTINGS
-# ---------------------------
+input_folder = "data/cleaned"
+output_file = "data/chunks/all_chunks.json"
 
-MAX_CHARS = 800
-OVERLAP = 150
-MIN_CHARS = 80
-
-EMBED_MODEL = "nomic-embed-text"
+os.makedirs("data/chunks", exist_ok=True)
 
 
-# ---------------------------
-# TEXT CLEANER
-# ---------------------------
-
-def clean_text(text):
-    text = text.strip()
-    text = re.sub(r"\s+", " ", text)
-    return text
-
-
-# ---------------------------
-# SENTENCE SPLITTER
-# ---------------------------
-
-def split_text(text, max_chars=MAX_CHARS, overlap=OVERLAP):
+def chunk_text(text, chunk_size=330, overlap=50):
 
     sentences = re.split(r'(?<=[.!?]) +', text)
 
     chunks = []
-    current = ""
+    current = []
 
     for sentence in sentences:
 
-        if len(current) + len(sentence) < max_chars:
-            current += " " + sentence
+        words = sentence.split()
+
+        if len(current) + len(words) <= chunk_size:
+            current.extend(words)
+
         else:
-            chunks.append(current.strip())
-            current = sentence
+
+            chunk = " ".join(current)
+            chunks.append(chunk)
+
+            current = current[-overlap:] + words
 
     if current:
-        chunks.append(current.strip())
+        chunks.append(" ".join(current))
 
-    # add overlap
-    final_chunks = []
+    return chunks
+
+
+all_chunks = []
+seen = set()
+
+
+for file in os.listdir(input_folder):
+
+    if not file.endswith(".json"):
+        continue
+
+    path = os.path.join(input_folder, file)
+
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    text = data["text"]
+
+    if len(text) < 200:
+        continue
+
+    url = data["url"]
+    domain = data["domain"]
+
+    chunks = chunk_text(text)
 
     for i, chunk in enumerate(chunks):
 
-        if i == 0:
-            final_chunks.append(chunk)
-        else:
-            overlap_text = chunks[i-1][-overlap:]
-            final_chunks.append(overlap_text + " " + chunk)
+        # hash for duplicate detection
+        h = hashlib.md5(chunk.encode()).hexdigest()
 
-    return final_chunks
-
-
-# ---------------------------
-# CONNECT CHROMADB
-# ---------------------------
-
-client = chromadb.PersistentClient(path="kb")
-
-try:
-    client.delete_collection("tax_kb")
-except:
-    pass
-
-collection = client.get_or_create_collection("tax_kb")
-
-
-# ---------------------------
-# LOAD SCRAPED DATA
-# ---------------------------
-
-with open("data/chunks/all_chunks.json", encoding="utf-8") as f:
-    chunks = json.load(f)
-
-
-documents = []
-embeddings = []
-ids = []
-metadatas = []
-
-counter = 0
-
-
-# ---------------------------
-# PROCESS CHUNKS
-# ---------------------------
-
-for chunk in chunks:
-
-    # combine title + text for better embeddings
-    text = clean_text(chunk.get("title", "") + " " + chunk["text"])
-
-    if len(text) < MIN_CHARS:
-        continue
-
-    parts = split_text(text)
-
-    for part in parts:
-
-        part = clean_text(part)
-
-        if len(part) < MIN_CHARS:
+        if h in seen:
             continue
 
-        # safety limit to avoid ollama overflow
-        part = part[:1000]
+        seen.add(h)
 
-        try:
-            emb = ollama.embeddings(
-                model=EMBED_MODEL,
-                prompt=part
-            )["embedding"]
-
-        except Exception as e:
-            print("Embedding failed:", e)
-            continue
-
-        documents.append(part)
-        embeddings.append(emb)
-
-        ids.append(f"{chunk['id']}_{counter}")
-
-        metadatas.append({
-            "url": chunk.get("url", ""),
-            "domain": chunk.get("domain", ""),
-            "topic": "tax"
+        all_chunks.append({
+            "id": f"{file}_{i}",
+            "text": chunk,
+            "url": url,
+            "domain": domain
         })
 
-        counter += 1
+
+with open(output_file, "w", encoding="utf-8") as f:
+    json.dump(all_chunks, f, indent=2)
 
 
-# ---------------------------
-# INSERT INTO CHROMADB
-# ---------------------------
-
-print("Saving to ChromaDB...")
-
-collection.add(
-    documents=documents,
-    embeddings=embeddings,
-    metadatas=metadatas,
-    ids=ids
-)
-
-print("Knowledge base built with", len(documents), "chunks")
+print("Total chunks created:", len(all_chunks))

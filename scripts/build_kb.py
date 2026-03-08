@@ -38,15 +38,15 @@ def split_text(text, max_chars=MAX_CHARS, overlap=OVERLAP):
     for sentence in sentences:
 
         if len(current) + len(sentence) < max_chars:
-            current += " " + sentence
+            current = (current + " " + sentence).strip()
         else:
-            chunks.append(current.strip())
-            current = sentence
+            if current:
+                chunks.append(current)
+            current = sentence.strip()
 
     if current:
-        chunks.append(current.strip())
+        chunks.append(current)
 
-    # add overlap
     final_chunks = []
 
     for i, chunk in enumerate(chunks):
@@ -54,8 +54,9 @@ def split_text(text, max_chars=MAX_CHARS, overlap=OVERLAP):
         if i == 0:
             final_chunks.append(chunk)
         else:
-            overlap_text = chunks[i-1][-overlap:]
-            final_chunks.append(overlap_text + " " + chunk)
+            prev_chunk = chunks[i-1]
+            overlap_text = prev_chunk[max(0, len(prev_chunk)-overlap):]
+            final_chunks.append((overlap_text + " " + chunk).strip())
 
     return final_chunks
 
@@ -127,7 +128,7 @@ for chunk in chunks:
         documents.append(part)
         embeddings.append(emb)
 
-        ids.append(f"{chunk['id']}_{counter}")
+        ids.append(f"doc_{counter}")
 
         metadatas.append({
             "url": chunk.get("url", ""),

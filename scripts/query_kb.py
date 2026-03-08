@@ -26,7 +26,7 @@ while True:
 
     results = collection.query(
         query_embeddings=[query_embedding],
-        n_results=20
+        n_results=50
     )
 
     retrieved_docs = results["documents"][0]
@@ -46,7 +46,7 @@ while True:
 
         # keyword matching score
         for word in keywords:
-            if word in doc_lower:
+            if len(word) > 2 and word in doc_lower:
                 score += 1
 
         # skip tiny fragments
@@ -59,7 +59,7 @@ while True:
 
     scored_chunks.sort(reverse=True, key=lambda x: x[0])
 
-    top_chunks = scored_chunks[:3]
+    top_chunks = scored_chunks[:12]
 
     documents = [x[1] for x in top_chunks]
     sources = [x[2] for x in top_chunks]
@@ -70,10 +70,17 @@ while True:
         print("\nTaxGPT: I don't know based on the knowledge base.\n")
         continue
 
-    context = "\n\n".join(documents)
+    MAX_CONTEXT = 4000
+
+    context = ""
+
+    for doc in documents:
+        if len(context) + len(doc) > MAX_CONTEXT:
+            break
+        context += doc + "\n\n"
 
     print("\nRetrieved Context:\n")
-    print(context[:800])
+    print(context)
     print()
 
     # ---------------- LLM PROMPT ----------------
