@@ -13,9 +13,7 @@ env/
 .env
 
 # Data folders (large / generated)
-data/raw/
-data/cleaned/
-data/chunks/
+data/
 
 # Vector database
 kb/
