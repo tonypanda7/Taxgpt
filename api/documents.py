@@ -188,6 +188,9 @@ def get_document_extraction(id: str, db: Session = Depends(get_db)):
     )
 
 
+from db.models import FinancialProfile
+from tax_engine.regime_compare import compare_regimes
+
 @router.post("/{id}/confirm", response_model=DocumentConfirmResponse)
 def confirm_document(id: str, payload: DocumentConfirmRequest, db: Session = Depends(get_db)):
     """User confirms fields → profile update → tax recalc."""
@@ -199,13 +202,39 @@ def confirm_document(id: str, payload: DocumentConfirmRequest, db: Session = Dep
     doc.extracted_json = json.dumps(payload.confirmed_data)
     db.commit()
     
-    # Mocking tax recalculation (engine call would go here)
-    # new_tax = calculate_individual_tax(payload.confirmed_data.get('net_taxable_income', 0))
+    profile = db.query(FinancialProfile).filter(
+        FinancialProfile.user_id == doc.user_id,
+        FinancialProfile.financial_year == doc.financial_year
+    ).first()
+    
+    if not profile:
+        profile = FinancialProfile(
+            user_id=doc.user_id,
+            financial_year=doc.financial_year
+        )
+        db.add(profile)
+        
+    if doc.doc_type == DocTypeEnum.form16.value:
+        profile.total_income += float(payload.confirmed_data.get('gross_salary', {}).get('value') or 0.0)
+        profile.total_deductions += float(payload.confirmed_data.get('section_80c_total', {}).get('value') or 0.0)
+        profile.total_tds += float(payload.confirmed_data.get('tds_deducted', {}).get('value') or 0.0)
+    elif doc.doc_type == DocTypeEnum.ais.value:
+        profile.total_income += float(payload.confirmed_data.get('total_gross_income', {}).get('value') or 0.0)
+        profile.total_tds += float(payload.confirmed_data.get('total_tds', {}).get('value') or 0.0)
+        
+    tax_comparison = compare_regimes(profile.total_income, profile.total_deductions)
+    
+    profile.calculated_old_tax = tax_comparison["old_regime_tax"]
+    profile.calculated_new_tax = tax_comparison["new_regime_tax"]
+    db.commit()
+    
+    # Return the minimum of the two as the new liability
+    new_liability = min(profile.calculated_old_tax, profile.calculated_new_tax)
     
     return DocumentConfirmResponse(
         message="Document confirmed and financial profile updated.",
         tax_recalculated=True,
-        new_tax_liability=125000.00  # Mock value
+        new_tax_liability=new_liability
     )
 
 

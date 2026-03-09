@@ -11,9 +11,11 @@ client = TestClient(app)
 def setup_database():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
-    user = User(id="testuser_123", email="test@example.com", hashed_password="pw")
-    db.add(user)
-    db.commit()
+    user = db.query(User).filter(User.email == "test@example.com").first()
+    if not user:
+        user = User(id="testuser_123", email="test@example.com", hashed_password="pw")
+        db.add(user)
+        db.commit()
     yield db
     db.close()
     Base.metadata.drop_all(bind=engine)
