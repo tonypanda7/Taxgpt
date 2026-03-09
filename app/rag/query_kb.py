@@ -11,7 +11,7 @@ from app.engines.business_tax import calculate_business_tax
 from app.engines.firm_tax import calculate_firm_tax
 from app.engines.worker_tax import calculate_worker_tax
 from app.engines.regime_compare import compare_regimes
-
+from app.database.user_data import SessionLocal, UserFinancialData
 
 conversation_history = []
 
@@ -25,7 +25,18 @@ collection = client.get_collection("tax_kb")
 # ==============================
 
 def process_query(question):
+    db = SessionLocal()
 
+    records = db.query(UserFinancialData).filter(
+        UserFinancialData.user_id == 1
+    ).all()
+
+    user_context = ""
+
+    for r in records:
+        user_context += str(r.data) + "\n"
+
+    db.close()
     intent = detect_intent(question)
 
     # ---------- EMBED QUERY ----------

@@ -1,4 +1,4 @@
-from engine.individual_tax import calculate_individual_tax
+from app.engines.individual_tax import calculate_individual_tax
 
 def compare_regimes(income, deductions):
 
