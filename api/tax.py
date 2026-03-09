@@ -3,9 +3,14 @@ from sqlalchemy.orm import Session
 
 from db.database import get_db
 from db.models import FinancialProfile, User
-from schemas.tax import RegimeComparisonResponse, RegimeBreakdown, DeductionOpportunity
+from schemas.tax import (
+    RegimeComparisonResponse, RegimeBreakdown, DeductionOpportunity,
+    AdvanceTaxResponse, AdvanceTaxInstallment,
+    HRAExemptionResponse
+)
 from tax_engine.regime_compare import compare_regimes
-from tax_engine.individual_tax import MODULE_VERSION
+from tax_engine.individual_tax import MODULE_VERSION, calculate_individual_tax, calculate_hra_exemption
+from tax_engine.advance_tax import calculate_advance_tax
 from scripts.suggest_deductions import suggest_deductions
 
 router = APIRouter(prefix="/tax", tags=["tax"])
@@ -157,3 +162,63 @@ def get_regime_comparison(
         deduction_opportunities=deduction_opps,
         engine_version=MODULE_VERSION,
     )
+
+
+@router.get("/advance-tax", response_model=AdvanceTaxResponse)
+def get_advance_tax_schedule(
+    financial_year: str = "FY2024-25",
+    db: Session = Depends(get_db)
+):
+    """
+    Calculate advance tax installment schedule for the current user.
+    Shows quarterly installments and whether advance tax applies.
+    """
+    user = db.query(User).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="No user found.")
+
+    profile = db.query(FinancialProfile).filter(
+        FinancialProfile.user_id == user.id,
+        FinancialProfile.financial_year == financial_year
+    ).first()
+
+    if not profile:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No FinancialProfile found for {financial_year}. Upload documents first."
+        )
+
+    # Use tax engine to get total tax liability
+    tax_result = calculate_individual_tax(max(profile.total_income - profile.total_deductions, 0))
+    annual_tax = tax_result["total_tax"]
+
+    result = calculate_advance_tax(annual_tax, tds_already_deducted=profile.total_tds)
+
+    installments = [
+        AdvanceTaxInstallment(**inst) for inst in result.get("installments", [])
+    ]
+
+    return AdvanceTaxResponse(
+        advance_tax_applicable=result["advance_tax_applicable"],
+        reason=result.get("reason"),
+        annual_tax_liability=result.get("annual_tax_liability"),
+        tds_already_deducted=result.get("tds_already_deducted", 0),
+        net_tax_liability=result["net_tax_liability"],
+        installments=installments,
+        engine_version=MODULE_VERSION,
+    )
+
+
+@router.get("/hra", response_model=HRAExemptionResponse)
+def calculate_hra(
+    basic_salary: float,
+    hra_received: float,
+    rent_paid: float,
+    is_metro: bool = True
+):
+    """
+    Calculate HRA exemption under Section 10(13A) — applicable only under Old Regime.
+    Shows the 3-part formula breakdown and the final exemption amount.
+    """
+    result = calculate_hra_exemption(basic_salary, hra_received, rent_paid, is_metro)
+    return HRAExemptionResponse(**result)
