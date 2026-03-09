@@ -8,6 +8,7 @@ from tax_engine.firm_tax import calculate_firm_tax
 from scripts.extract_financial_entities import extract_financial_entities
 from tax_engine.regime_compare import compare_regimes
 from scripts.suggest_deductions import suggest_deductions
+from scripts.gemini_context import get_gemini_context
 
 conversation_history = []
 # connect to chroma database
@@ -36,7 +37,7 @@ while True:
 
     results = collection.query(
         query_embeddings=[query_embedding],
-        n_results=80
+        n_results=20
     )
 
     retrieved_docs = results["documents"][0]
@@ -87,10 +88,18 @@ while True:
         if len(context) + len(doc) > MAX_CONTEXT:
             break
         context += doc + "\n\n"
+    gemini_context = get_gemini_context(question)
+    final_context = f"""
+    Database Context:
+    {context}
+
+    External Knowledge:
+    {gemini_context}
+    """
     
 
     if intent == "tax_calculation":
-        entities = extract_financial_entities(question, context)
+        entities = extract_financial_entities(question, final_context)
         if entities:
 
             income_sources = entities.get("income_sources", [])
@@ -135,7 +144,7 @@ while True:
 
             print("Old Regime Tax:", comparison["old_regime_tax"])
             print("New Regime Tax:", comparison["new_regime_tax"])
-            suggestions = suggest_deductions(question, context)
+            suggestions = suggest_deductions(question, final_context)
 
             print("\nPossible Tax Saving Options:\n")
             print(suggestions)
@@ -145,7 +154,7 @@ while True:
             continue
 
     print("\nRetrieved Context:\n")
-    print(context)
+    print(final_context)
     print()
 
     # ---------------- LLM PROMPT ----------------
@@ -166,7 +175,7 @@ while True:
         - Explain step-by-step if needed
 
         Retrieved context:
-        {context}
+        {final_context}
 
         User question:
         {question}
