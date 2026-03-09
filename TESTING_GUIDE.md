@@ -102,3 +102,22 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/documents/<DOC_ID>/confirm" `
   -Headers @{"Content-Type"="application/json"} `
   -Body $confirmBody
 ```
+
+### Step 5: Compare Tax Regimes
+
+After confirming at least one document, compare Old vs New regime.
+
+**PowerShell:**
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/tax/comparison?financial_year=FY2024-25" -Method Get
+```
+
+This returns the full breakdown per regime, the recommended regime, savings amount, breakeven investment needed to flip the recommendation, and a list of unclaimed deduction opportunities.
+
+### Running Automated Tests
+
+Run the full test suite:
+
+```bash
+python -m pytest tests/ -v
+```
