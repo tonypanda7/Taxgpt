@@ -5,6 +5,9 @@ from scripts.extract_tax_info import extract_tax_info
 from tax_engine.individual_tax import calculate_individual_tax
 from tax_engine.business_tax import calculate_business_tax
 from tax_engine.firm_tax import calculate_firm_tax
+from scripts.extract_financial_entities import extract_financial_entities
+from tax_engine.regime_compare import compare_regimes
+from scripts.suggest_deductions import suggest_deductions
 
 conversation_history = []
 # connect to chroma database
@@ -77,40 +80,69 @@ while True:
         print("\nTaxGPT: I don't know based on the knowledge base.\n")
         continue
 
-    MAX_CONTEXT = 40000
+    MAX_CONTEXT = 5000
 
     context = ""
     for doc in documents:
         if len(context) + len(doc) > MAX_CONTEXT:
             break
         context += doc + "\n\n"
+    
+
     if intent == "tax_calculation":
-        tax_info = extract_tax_info(question, context)
-        if tax_info:
+        entities = extract_financial_entities(question, context)
+        if entities:
 
-            ttype = tax_info["taxpayer_type"]
-            income = tax_info["income"]
-            expenses = tax_info["expenses"]
-            deductions = tax_info["deductions"]
+            income_sources = entities.get("income_sources", [])
 
+            if not income_sources:
+                print("\nTaxGPT: I could not detect income in your query.\n")
+                continue
+
+            income = sum(i["amount"] for i in income_sources)
+            deduction_list = entities.get("deductions", [])
+            deductions = sum(d.get("amount", 0) for d in deduction_list)
             taxable_income = income - deductions
 
-            if ttype == "individual":
-                result = calculate_individual_tax(taxable_income)
+            taxpayer_type = entities.get("taxpayer_type", "individual")
 
-            elif ttype == "business":
+            if taxpayer_type == "business":
+
+                expenses = sum(e["amount"] for e in entities.get("expenses", []))
                 result = calculate_business_tax(income, expenses)
 
-            elif ttype == "firm":
+            elif taxpayer_type == "firm":
+
                 result = calculate_firm_tax(income)
 
             else:
+
                 result = calculate_individual_tax(taxable_income)
 
-            print("\nTax Calculation:")
-            print(result)
-            continue
+            print("\nTax Calculation:\n")
 
+            print("Income:", income)
+            print("Deductions:", deductions)
+            print("Taxable Income:", taxable_income)
+
+            print("Tax:", result["tax"])
+            print("Cess:", result["cess"])
+            print("Total Tax:", result["total_tax"])
+
+            comparison = compare_regimes(income, deductions)
+
+            print("\nTax Regime Comparison:")
+
+            print("Old Regime Tax:", comparison["old_regime_tax"])
+            print("New Regime Tax:", comparison["new_regime_tax"])
+            suggestions = suggest_deductions(question, context)
+
+            print("\nPossible Tax Saving Options:\n")
+            print(suggestions)
+            print()
+
+
+            continue
 
     print("\nRetrieved Context:\n")
     print(context)
