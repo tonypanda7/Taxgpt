@@ -1,8 +1,12 @@
 from tax_engine.individual_tax import calculate_individual_tax
 
 
-def calculate_business_tax(revenue, expenses):
+def calculate_business_tax(revenue, expenses, regime="new"):
+    """Calculate tax for a business owner based on profit (revenue - expenses)."""
 
-    profit = revenue - expenses
-
-    return calculate_individual_tax(profit)
+    profit = max(revenue - expenses, 0)
+    result = calculate_individual_tax(profit, regime=regime)
+    result["revenue"] = revenue
+    result["expenses"] = expenses
+    result["profit"] = profit
+    return result
