@@ -1,15 +1,14 @@
 # How to Test AI Tax Copilot
 
-This guide outlines how to manually test the different components of the Document Auto-Parser and Chatbot features using standard HTTP tools or the built-in Swagger UI.
+This guide outlines how to manually test the different components of the Document Auto-Parser using standard HTTP tools or the built-in Swagger UI.
 
 ## Prerequisites
 
 1.  **Virtual Environment**: Ensure your Python virtual environment is active.
 2.  **Dependencies**: Run `pip install -r requirements.txt` (if you haven't already).
-3.  **Environment Variables**: Ensure your `.env` file in the root directory contains the necessary API keys:
+9.  **Environment Variables**: Ensure your `.env` file in the root directory contains the necessary API keys:
     ```env
     GEMINI_API_KEY=your_google_genai_key
-    OPENAI_API_KEY=your_openai_api_key
     ```
 4.  **Database**: The SQLite database (`taxcopilot.db`) is already created and migrated. If you ever need to reset it, delete the file and run:
     ```bash
@@ -33,7 +32,7 @@ The API will be available at `http://127.0.0.1:8000`.
 FastAPI automatically generates an interactive API documentation interface. This is the easiest way to test the endpoints.
 
 1.  Open your browser and navigate to: `http://127.0.0.1:8000/docs`
-2.  You will see a list of all available endpoints grouped by their tags (`documents` and `chat`).
+2.  You will see a list of all available endpoints grouped by their tags (`documents`).
 3.  Click on an endpoint to expand it, then click the **"Try it out"** button.
 4.  Fill in the required parameters and click **"Execute"**.
 
@@ -95,7 +94,6 @@ $confirmBody = @{
     confirmed_data = @{
         gross_salary = @{ value = 1500000; confidence = 0.95 }
         tds_deducted = @{ value = 150000; confidence = 0.92 }
-        section_80c_total = @{ value = 150000; confidence = 0.88 }
     }
 } | ConvertTo-Json
 
@@ -104,24 +102,3 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/documents/<DOC_ID>/confirm" `
   -Headers @{"Content-Type"="application/json"} `
   -Body $confirmBody
 ```
-
-### Step 5: Test the Chatbot
-
-Ask the chatbot about your taxes. The system will look up the `FinancialProfile` created in Step 4.
-
-**PowerShell:**
-```powershell
-$chatBody = @{
-    user_id = "testuser_123" # Must match the user in your DB, uploading creates this mock user
-    message = "What is my total tax liability for the year?"
-    financial_year = "FY2024-25"
-} | ConvertTo-Json
-
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/chat/" `
-  -Method Post `
-  -Headers @{"Content-Type"="application/json"} `
-  -Body $chatBody
-```
-
-**Testing the Validator (Hallucination Prevention):**
-If you temporarily modify `ai/responder.py` to force GPT to return an incorrect number like "Your tax is ₹9,999,999", you will see the `/chat` endpoint block the response and return `"validation_status": "failed_blocked"`.
