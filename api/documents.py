@@ -15,15 +15,72 @@ from schemas.documents import (
     DocumentCorrectRequest, MismatchResponse
 )
 
+import google.generativeai as genai
+from PIL import Image
+
 from security.pii_masker import mask_pii
 from ai.extractor import extract_form16, extract_ais, extract_salary_slip, extract_rent_receipt
-# We import a dummy tax engine trigger (in production it would be from tax_engine.individual_tax etc)
-# from engine.tax_engine import recalculate_tax_for_user
+
+# Configure Gemini for image OCR
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    vision_model = genai.GenerativeModel("gemini-1.5-flash")
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+def _extract_text_from_file(file_path: str) -> str:
+    """Extract text from PDF or image files.
+    
+    PDFs  → PyMuPDF (fitz) for direct text extraction.
+    Images → Gemini 1.5 Flash vision API for OCR.
+    """
+    ext = file_path.rsplit(".", 1)[-1].lower()
+    
+    if ext == "pdf":
+        import fitz  # PyMuPDF
+        text_parts = []
+        with fitz.open(file_path) as pdf:
+            for page in pdf:
+                text_parts.append(page.get_text())
+        raw = "\n".join(text_parts).strip()
+        
+        # If PDF is scanned (no selectable text), fall back to Gemini vision
+        if len(raw) < 50 and GEMINI_API_KEY:
+            with fitz.open(file_path) as pdf:
+                page = pdf[0]
+                pix = page.get_pixmap(dpi=200)
+                img_path = file_path + ".tmp.png"
+                pix.save(img_path)
+            try:
+                raw = _ocr_with_gemini(img_path)
+            finally:
+                if os.path.exists(img_path):
+                    os.remove(img_path)
+        return raw if raw else "Unable to extract text from this PDF."
+    
+    elif ext in ("jpg", "jpeg", "png"):
+        if GEMINI_API_KEY:
+            return _ocr_with_gemini(file_path)
+        return "Gemini API key not configured — cannot OCR image."
+    
+    return "Unsupported file format."
+
+
+def _ocr_with_gemini(image_path: str) -> str:
+    """Use Gemini 1.5 Flash to OCR text from an image."""
+    image = Image.open(image_path)
+    prompt = (
+        "Extract ALL visible text from this document image. "
+        "Return only the raw text content, preserving the layout as much as possible. "
+        "Do not add any commentary or formatting — just the text."
+    )
+    response = vision_model.generate_content([prompt, image])
+    return response.text.strip()
 
 
 def process_document_ocr(doc_id: str, db: Session):
@@ -36,13 +93,8 @@ def process_document_ocr(doc_id: str, db: Session):
         doc.ocr_status = "processing"
         db.commit()
         
-        # 1. Read file to extract text (In real life, we would use pdfminer or pytesseract here)
-        # For this implementation, we will mock the text extraction from the file.
-        # Let's pretend we extracted text from PDF/Image:
-        raw_text = "MOCK EXTRACTED TEXT FROM PDF"
-        with open(doc.storage_path, "rb") as f:
-            # We would normally parse the file here
-            pass 
+        # 1. Extract text from uploaded file (PDF or image)
+        raw_text = _extract_text_from_file(doc.storage_path)
         
         # 2. Mask PII
         masked_text = mask_pii(raw_text)

@@ -111,3 +111,39 @@ def calculate_individual_tax(income, regime="new"):
         "total_tax": total_tax,
         "engine_version": MODULE_VERSION
     }
+
+
+def calculate_hra_exemption(basic_salary, hra_received, rent_paid, is_metro=True):
+    """
+    Calculate HRA exemption under Section 10(13A) — Old Regime only.
+    
+    The exemption is the MINIMUM of:
+      1. Actual HRA received from employer
+      2. 50% of basic salary (metro) or 40% (non-metro)
+      3. Rent paid minus 10% of basic salary
+    
+    Args:
+        basic_salary: Annual basic salary
+        hra_received: Actual HRA received from employer
+        rent_paid: Total annual rent paid
+        is_metro: True for Delhi/Mumbai/Kolkata/Chennai
+    
+    Returns:
+        Dict with all three legs and the final exemption amount.
+    """
+    metro_rate = 0.50 if is_metro else 0.40
+    
+    leg1_actual_hra = hra_received
+    leg2_percent_basic = round(basic_salary * metro_rate, 2)
+    leg3_rent_minus_10 = max(round(rent_paid - (basic_salary * 0.10), 2), 0)
+    
+    exemption = round(min(leg1_actual_hra, leg2_percent_basic, leg3_rent_minus_10), 2)
+    
+    return {
+        "actual_hra": leg1_actual_hra,
+        "percent_of_basic": leg2_percent_basic,
+        "rent_minus_10_percent": leg3_rent_minus_10,
+        "exemption": exemption,
+        "metro_city": is_metro,
+        "engine_version": MODULE_VERSION
+    }

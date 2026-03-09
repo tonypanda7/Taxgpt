@@ -34,3 +34,36 @@ class RegimeComparisonResponse(BaseModel):
     )
     deduction_opportunities: List[DeductionOpportunity] = Field(default_factory=list)
     engine_version: str = Field(description="Tax engine version used for this calculation")
+
+
+# --- Advance Tax Schemas ---
+
+class AdvanceTaxInstallment(BaseModel):
+    due_date: str = Field(description="ISO date of installment deadline")
+    display_date: str = Field(description="Human-readable date")
+    installment_percent: int = Field(description="Percent of tax due this quarter")
+    cumulative_percent: int = Field(description="Cumulative % due up to this quarter")
+    installment_amount: float = Field(description="Amount due this quarter")
+    cumulative_amount: float = Field(description="Total cumulative amount due")
+
+
+class AdvanceTaxResponse(BaseModel):
+    advance_tax_applicable: bool = Field(description="True if net tax > ₹10,000")
+    reason: Optional[str] = Field(default=None, description="Why advance tax doesn't apply")
+    annual_tax_liability: Optional[float] = None
+    tds_already_deducted: float = 0
+    net_tax_liability: float
+    installments: List[AdvanceTaxInstallment] = Field(default_factory=list)
+    engine_version: str
+
+
+# --- HRA Schemas ---
+
+class HRAExemptionResponse(BaseModel):
+    actual_hra: float = Field(description="Actual HRA received from employer")
+    percent_of_basic: float = Field(description="50% (metro) or 40% (non-metro) of basic salary")
+    rent_minus_10_percent: float = Field(description="Rent paid minus 10% of basic salary")
+    exemption: float = Field(description="HRA exemption = minimum of the three legs")
+    metro_city: bool = Field(description="Whether metro city rates were used")
+    engine_version: str
+
