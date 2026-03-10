@@ -51,6 +51,7 @@ class DocumentExtractionResponse(BaseModel):
         description="green (>=0.85), amber (0.60-0.84), red (<0.60)"
     )
     extracted_data: Optional[Dict[str, ExtractedField]] = None
+    raw_text: Optional[str] = Field(default=None, description="Raw OCR text extracted from the document")
 
 
 class DocumentConfirmRequest(BaseModel):

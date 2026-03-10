@@ -25,7 +25,7 @@ from ai.extractor import extract_form16, extract_ais, extract_salary_slip, extra
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
-    vision_model = genai.GenerativeModel("gemini-1.5-flash")
+    vision_model = genai.GenerativeModel("gemini-2.5-flash")
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -95,6 +95,7 @@ def process_document_ocr(doc_id: str, db: Session):
         
         # 1. Extract text from uploaded file (PDF or image)
         raw_text = _extract_text_from_file(doc.storage_path)
+        print(f"[OCR] Raw text length: {len(raw_text)} chars for doc {doc_id}")
         
         # 2. Mask PII
         masked_text = mask_pii(raw_text)
@@ -109,6 +110,8 @@ def process_document_ocr(doc_id: str, db: Session):
             extracted_data = extract_salary_slip(masked_text)
         elif doc.doc_type == DocTypeEnum.rent_receipt.value:
             extracted_data = extract_rent_receipt(masked_text)
+        
+        print(f"[OCR] Gemini returned {len(extracted_data)} fields for doc {doc_id}")
             
         # 4. Calculate Aggregate Confidence
         total_conf = 0.0
@@ -120,14 +123,17 @@ def process_document_ocr(doc_id: str, db: Session):
                 
         confidence = round(total_conf / count, 2) if count > 0 else 0.0
         
-        # 5. Save results
-        doc.extracted_json = json.dumps(extracted_data)
+        # 5. Save results — include raw_text so frontend can display a summary
+        save_data = {"_raw_text": masked_text, **extracted_data}
+        doc.extracted_json = json.dumps(save_data)
         doc.extraction_confidence = confidence
         doc.ocr_status = "complete"
         db.commit()
         
     except Exception as e:
         print(f"Error in OCR task: {e}")
+        import traceback
+        traceback.print_exc()
         doc.ocr_status = "failed"
         db.commit()
 
@@ -224,7 +230,11 @@ def get_document_extraction(id: str, db: Session = Depends(get_db)):
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
         
-    extracted = json.loads(doc.extracted_json) if doc.extracted_json else None
+    all_data = json.loads(doc.extracted_json) if doc.extracted_json else {}
+    
+    # Separate raw_text from structured fields
+    raw_text = all_data.pop("_raw_text", None)
+    extracted = all_data if all_data else None
     
     color = None
     if doc.extraction_confidence is not None:
@@ -236,7 +246,8 @@ def get_document_extraction(id: str, db: Session = Depends(get_db)):
         ocr_status=doc.ocr_status,
         extraction_confidence=doc.extraction_confidence,
         confidence_color=color,
-        extracted_data=extracted
+        extracted_data=extracted,
+        raw_text=raw_text
     )
 
 
@@ -262,9 +273,17 @@ def confirm_document(id: str, payload: DocumentConfirmRequest, db: Session = Dep
     if not profile:
         profile = FinancialProfile(
             user_id=doc.user_id,
-            financial_year=doc.financial_year
+            financial_year=doc.financial_year,
+            total_income=0.0,
+            total_deductions=0.0,
+            total_tds=0.0
         )
         db.add(profile)
+        
+    # Ensure they aren't None from an old DB row
+    profile.total_income = profile.total_income or 0.0
+    profile.total_deductions = profile.total_deductions or 0.0
+    profile.total_tds = profile.total_tds or 0.0
         
     if doc.doc_type == DocTypeEnum.form16.value:
         profile.total_income += float(payload.confirmed_data.get('gross_salary', {}).get('value') or 0.0)
