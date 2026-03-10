@@ -1,23 +1,47 @@
+import { useState, useEffect } from 'react';
 import { formatCurrency } from '../utils/formatCurrency';
 import { cn } from '../utils/cn';
-import { CheckCircle2, AlertCircle, Edit2, History } from 'lucide-react';
+import { CheckCircle2, Edit2, History, Loader2 } from 'lucide-react';
+import { api } from '../utils/api';
 
 export default function FinancialSummaryCard({ showOldRegime = false, onToggleRegime }) {
-    // Mock data representing the latest profile state
-    const data = {
-        grossIncome: 1500000,
-        deductions: {
-            sec80c: 150000,
-            sec80d: 25000,
-            hra: 120000,
-            standard: 75000 // new regime std ded
-        },
-        totalDeductions: 370000,
-        taxableIncome: 1130000
-    };
+    const [summaryData, setSummaryData] = useState(null);
+    const [loading, setLoading] = useState(true);
 
-    const oldTax = 137500;
-    const newTax = 114100;
+    useEffect(() => {
+        const fetchSummary = async () => {
+            try {
+                const data = await api.tax.getComparison();
+                setSummaryData(data);
+            } catch (error) {
+                console.error("Failed to load financial summary", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchSummary();
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center h-[500px] sticky top-6">
+                <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-4" />
+                <p className="text-sm font-medium text-gray-500">Loading Profile...</p>
+            </div>
+        );
+    }
+
+    if (!summaryData) {
+        return (
+            <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center p-6 text-center h-[500px] sticky top-6">
+                <p className="text-sm font-medium text-gray-500">Please complete onboarding to generate your profile.</p>
+            </div>
+        );
+    }
+
+    const { old_regime, new_regime } = summaryData;
+    // We assume gross income is taxable + deductions for display purposes
+    const grossIncome = old_regime.taxable_income + old_regime.deductions_applied + old_regime.standard_deduction;
 
     return (
         <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full sticky top-6">
@@ -39,7 +63,7 @@ export default function FinancialSummaryCard({ showOldRegime = false, onToggleRe
                         <div className="flex justify-between items-center group cursor-pointer">
                             <span className="text-sm text-gray-600">Gross Salary</span>
                             <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">{formatCurrency(data.grossIncome)}</span>
+                                <span className="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">{formatCurrency(grossIncome)}</span>
                                 <Edit2 className="w-3 h-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                             </div>
                         </div>
@@ -58,23 +82,16 @@ export default function FinancialSummaryCard({ showOldRegime = false, onToggleRe
                     <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Deductions (Old Regime)</h4>
                     <div className="space-y-3">
                         <div className="flex justify-between items-center group cursor-pointer">
-                            <span className="text-sm text-gray-600">Section 80C</span>
+                            <span className="text-sm text-gray-600">Standard Deduction</span>
                             <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-gray-900">{formatCurrency(data.deductions.sec80c)}</span>
+                                <span className="text-sm font-medium text-gray-900">{formatCurrency(old_regime.standard_deduction)}</span>
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                             </div>
                         </div>
                         <div className="flex justify-between items-center group cursor-pointer">
-                            <span className="text-sm text-gray-600">Section 80D</span>
+                            <span className="text-sm text-gray-600">Other Deductions</span>
                             <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-gray-900">{formatCurrency(data.deductions.sec80d)}</span>
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                            </div>
-                        </div>
-                        <div className="flex justify-between items-center group cursor-pointer">
-                            <span className="text-sm text-gray-600">HRA Exemption</span>
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-gray-900">{formatCurrency(data.deductions.hra)}</span>
+                                <span className="text-sm font-medium text-gray-900">{formatCurrency(old_regime.deductions_applied)}</span>
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                             </div>
                         </div>
@@ -85,7 +102,7 @@ export default function FinancialSummaryCard({ showOldRegime = false, onToggleRe
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mt-4">
                     <div className="flex justify-between items-center mb-2">
                         <span className="text-sm text-gray-600">Taxable Income</span>
-                        <span className="text-sm font-semibold text-gray-900">{formatCurrency(data.taxableIncome)}</span>
+                        <span className="text-sm font-semibold text-gray-900">{formatCurrency(showOldRegime ? old_regime.taxable_income : new_regime.taxable_income)}</span>
                     </div>
                     <div className="w-full h-px bg-gray-200 my-3"></div>
 
@@ -96,17 +113,17 @@ export default function FinancialSummaryCard({ showOldRegime = false, onToggleRe
                             </span>
                             <span className={cn(
                                 "text-2xl font-bold tracking-tight",
-                                (!showOldRegime && newTax < oldTax) || (showOldRegime && oldTax < newTax)
+                                (!showOldRegime && new_regime.total_tax < old_regime.total_tax) || (showOldRegime && old_regime.total_tax < new_regime.total_tax)
                                     ? "text-emerald-600"
                                     : "text-gray-900"
                             )}>
-                                {formatCurrency(showOldRegime ? oldTax : newTax)}
+                                {formatCurrency(showOldRegime ? old_regime.total_tax : new_regime.total_tax)}
                             </span>
                         </div>
 
-                        {!showOldRegime && newTax < oldTax && (
+                        {!showOldRegime && new_regime.total_tax < old_regime.total_tax && (
                             <div className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-1 rounded shadow-sm uppercase">
-                                Saves {formatCurrency(oldTax - newTax)}
+                                Saves {formatCurrency(old_regime.total_tax - new_regime.total_tax)}
                             </div>
                         )}
                     </div>

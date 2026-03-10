@@ -8,6 +8,10 @@ class ChatRequest(BaseModel):
         min_length=1,
         max_length=2000,
     )
+    user_profile: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional financial profile dictionary for context injection"
+    )
 
 
 class ValidationResult(BaseModel):

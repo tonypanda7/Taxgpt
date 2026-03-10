@@ -1,38 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Upload, Mic, BookOpen, ThumbsUp, ThumbsDown, User, Bot, CheckCircle2 } from 'lucide-react';
+import { Send, Upload, Mic, BookOpen, ThumbsUp, ThumbsDown, User, Bot, CheckCircle2, RotateCcw } from 'lucide-react';
 import { cn } from '../utils/cn';
 import FinancialSummaryCard from '../components/FinancialSummaryCard';
 import CitationDrawer from '../components/CitationDrawer';
+import { api } from '../utils/api';
 import { formatCurrency } from '../utils/formatCurrency';
-
-// Mock messages for UI layout
-const INITIAL_MESSAGES = [
-    {
-        id: 1,
-        role: 'assistant',
-        text: "Hi Rahul! I'm your AI Tax Copilot. I see your profile is set up as a Salaried Employee with ₹15L gross income. How can I help you save tax today?",
-        time: "10:00 AM",
-    },
-    {
-        id: 2,
-        role: 'user',
-        text: "Should I claim HRA or buy a house on EMI to save more?",
-        time: "10:02 AM",
-    },
-    {
-        id: 3,
-        role: 'assistant',
-        text: "That’s a great question. Since your rent is currently ₹20,000/month, your HRA exemption is limited to ₹1.2L annually.\n\nIf you buy a house on EMI (say, a ₹50L loan at 8.5%), you can claim up to ₹2L in interest deduction under Section 24B. This would reduce your total tax from ₹1.14L to ₹95,000.\n\nHowever, remember that home ownership comes with other costs. Want me to run a detailed comparison?",
-        time: "10:03 AM",
-        citations: [
-            { section: "Section 24(B)", text: "Deduction of up to ₹2,00,000 is allowed on interest paid for a self-occupied property loan.", fy: "FY 2024-25", link: "#" },
-            { section: "Section 10(13A)", text: "HRA exemption is the least of: actual HRA, 50% basic (metro) or rent paid minus 10% basic salary.", fy: "FY 2024-25", link: "#" }
-        ]
-    }
-];
+import { useChat } from '../context/ChatContext';
 
 export default function Chat() {
-    const [messages, setMessages] = useState(INITIAL_MESSAGES);
+    const { messages, setMessages, userProfile } = useChat();
     const [inputValue, setInputValue] = useState('');
     const [isTyping, setIsTyping] = useState(false);
 
@@ -50,14 +26,31 @@ export default function Chat() {
         scrollToBottom();
     }, [messages, isTyping]);
 
-    const handleSend = () => {
-        if (!inputValue.trim()) return;
+    useEffect(() => {
+        // Load initial history only if empty
+        const loadHistory = async () => {
+            if (messages.length > 0) return;
+            try {
+                const history = await api.chat.getHistory();
+                setMessages(history);
+            } catch (error) {
+                console.error("Failed to load history", error);
+            }
+        };
+        loadHistory();
+    }, [messages.length, setMessages]);
+
+    const handleSend = async (messageToSend = inputValue) => {
+        if (!messageToSend.trim()) return;
+
+        // Opt to use function parameter if provided bypassing state update cycle delay
+        const textQuery = messageToSend.trim();
 
         // Add user message
         const newMsg = {
             id: Date.now(),
             role: 'user',
-            text: inputValue,
+            text: textQuery,
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
 
@@ -65,16 +58,37 @@ export default function Chat() {
         setInputValue('');
         setIsTyping(true);
 
-        // Simulate AI response
-        setTimeout(() => {
-            setIsTyping(false);
+        try {
+            // Send to REAL backend, passing the global user profile for context
+            const response = await api.chat.sendMessage(textQuery, userProfile);
+
+            // Map backend sources to citation format
+            const mappedCitations = (response.sources || []).map((src, i) => ({
+                section: src.section || `Source Document ${i + 1}`,
+                text: src.text || src.content || "Context retrieved from knowledge base.",
+                fy: src.fy || "FY 2024-25",
+                link: src.link || src.url || src.source || null,
+            }));
+
             setMessages(prev => [...prev, {
                 id: Date.now() + 1,
                 role: 'assistant',
-                text: "I've analyzed that scenario. Let me explain how it impacts your taxable income.",
+                text: response.answer,
+                citations: mappedCitations,
+                validation: response.validation,
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             }]);
-        }, 2000);
+        } catch (error) {
+            setMessages(prev => [...prev, {
+                id: Date.now() + 1,
+                role: 'assistant',
+                text: "I'm sorry, I'm having trouble connecting to the backend server. Please make sure the FastAPI server is running.",
+                isError: true,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            }]);
+        } finally {
+            setIsTyping(false);
+        }
     };
 
     const handleKeyDown = (e) => {
@@ -128,7 +142,7 @@ export default function Chat() {
                                     ))}
 
                                     {/* Smart Actions / Citations (Only for AI) */}
-                                    {msg.role === 'assistant' && msg.citations && (
+                                    {msg.role === 'assistant' && msg.citations && msg.citations.length > 0 && (
                                         <div className="mt-4 pt-4 border-t border-gray-200/60 flex items-center justify-between">
                                             <button
                                                 onClick={() => openCitations(msg.citations)}
@@ -152,6 +166,21 @@ export default function Chat() {
 
                                 {/* Timestamp */}
                                 <span className="text-[10px] text-gray-400 mt-1 px-1">{msg.time}</span>
+
+                                {/* Error State */}
+                                {msg.isError && (
+                                    <div className="mt-2 flex items-center gap-1 text-xs text-red-500 font-medium">
+                                        <RotateCcw className="w-3.5 h-3.5" />
+                                        Failed to get response
+                                    </div>
+                                )}
+
+                                {/* Validation Badge */}
+                                {msg.validation && msg.validation.is_valid === false && (
+                                    <div className="mt-3 bg-amber-50 border border-amber-200 p-2 rounded text-xs text-amber-800">
+                                        <strong>AI Warning:</strong> {msg.validation.warning}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -178,7 +207,7 @@ export default function Chat() {
                     {["Compare regimes", "What if I invest ₹50K in NPS?", "Explain Advance Tax", "Upload Form 16"].map(chip => (
                         <button
                             key={chip}
-                            onClick={() => setInputValue(chip)}
+                            onClick={() => handleSend(chip)}
                             className="whitespace-nowrap px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 bg-white hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors flex-shrink-0"
                         >
                             {chip}

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useChat } from '../context/ChatContext';
 import { Briefcase, Laptop, Building2, GraduationCap, CheckCircle2 } from 'lucide-react';
 import { cn } from '../utils/cn';
 
@@ -39,6 +41,9 @@ export default function Onboarding() {
     const [selectedPersona, setSelectedPersona] = useState(null);
     const navigate = useNavigate();
 
+    const { updatePersona } = useAuth();
+    const { userProfile, setUserProfile } = useChat();
+
     // Step 2 state
     const [salary, setSalary] = useState('');
     const [rent, setRent] = useState(null);
@@ -48,8 +53,18 @@ export default function Onboarding() {
     };
 
     const nextStep = () => {
-        if (step === 1 && selectedPersona) setStep(2);
-        else if (step === 2) navigate('/dashboard');
+        if (step === 1 && selectedPersona) {
+            updatePersona(selectedPersona);
+            setStep(2);
+        }
+        else if (step === 2) {
+            setUserProfile({
+                ...userProfile,
+                gross_income: salary,
+                rent_paid: rent
+            });
+            navigate('/dashboard');
+        }
     };
 
     return (
@@ -132,140 +147,56 @@ export default function Onboarding() {
                     </div>
                 </div>
             ) : (
-                <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-right-8 duration-500">
-
-                    {/* Chat Interface */}
-                    <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[600px]">
-                        <div className="flex-1 p-6 overflow-y-auto space-y-6">
-
-                            {/* Message 1 */}
-                            <div className="flex gap-4">
-                                <div className="w-8 h-8 rounded-full bg-blue-100 flex-shrink-0 flex items-center justify-center">🤖</div>
-                                <div className="bg-gray-50 text-gray-800 p-4 rounded-2xl rounded-tl-none max-w-[85%] text-sm leading-relaxed">
-                                    Great! Since you're salaried, let's start with your annual gross salary. You can type the amount or pick a range.
-                                </div>
-                            </div>
-
-                            {/* User Reply 1 */}
-                            {!salary ? (
-                                <div className="pl-12 flex flex-wrap gap-2 animate-in fade-in duration-300">
-                                    {['₹5L - ₹8L', '₹8L - ₹12L', '₹12L - ₹20L', '₹20L+'].map((range) => (
-                                        <button
-                                            key={range}
-                                            onClick={() => setSalary(range)}
-                                            className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-full text-sm hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                        >
-                                            {range}
-                                        </button>
-                                    ))}
-                                    <button className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-full text-sm hover:border-blue-300">Type exact amount</button>
-                                </div>
-                            ) : (
-                                <div className="flex gap-4 justify-end">
-                                    <div className="bg-blue-600 text-white p-4 rounded-2xl rounded-tr-none max-w-[85%] text-sm">
-                                        {salary}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Message 2 */}
-                            {salary && (
-                                <div className="flex gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                    <div className="w-8 h-8 rounded-full bg-blue-100 flex-shrink-0 flex items-center justify-center">🤖</div>
-                                    <div className="bg-gray-50 text-gray-800 p-4 rounded-2xl rounded-tl-none max-w-[85%] text-sm leading-relaxed">
-                                        Got it — {salary}. Do you pay rent? This helps us check if you can claim HRA.
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* User Reply 2 */}
-                            {salary && rent === null && (
-                                <div className="pl-12 flex flex-wrap gap-2 animate-in fade-in duration-300">
-                                    <button onClick={() => setRent('Yes, I pay rent')} className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-full text-sm hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors">Yes, I pay rent</button>
-                                    <button onClick={() => setRent('No, I own a house')} className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-full text-sm hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors">No, I own a house</button>
-                                    <button onClick={() => setRent('I live with parents')} className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-full text-sm hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors">I live with parents</button>
-                                </div>
-                            )}
-
-                            {rent && (
-                                <div className="flex gap-4 justify-end">
-                                    <div className="bg-blue-600 text-white p-4 rounded-2xl rounded-tr-none max-w-[85%] text-sm">
-                                        {rent}
-                                    </div>
-                                </div>
-                            )}
+                <div className="w-full max-w-2xl animate-in fade-in slide-in-from-right-8 duration-500">
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+                        <div className="text-center mb-8">
+                            <h2 className="text-2xl font-bold text-gray-900 mb-2">Build Your Financial Profile</h2>
+                            <p className="text-gray-500 text-sm">Tell us a bit about your finances so we can personalize our tax advice.</p>
                         </div>
 
-                        {/* Simulated Input Area */}
-                        <div className="p-4 bg-white border-t border-gray-100">
-                            <div className="relative">
+                        <div className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Annual Gross Income (₹)</label>
                                 <input
-                                    type="text"
-                                    placeholder="Type a message..."
-                                    className="w-full bg-gray-50 border border-gray-200 rounded-full py-3.5 pl-5 pr-12 text-sm focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-shadow"
-                                    disabled={!rent}
-                                />
-                                <button
-                                    onClick={nextStep}
-                                    disabled={!rent}
-                                    className="absolute right-2 top-2 p-1.5 bg-blue-600 text-white rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    &rarr;
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Sidebar */}
-                    <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 p-6 h-fit">
-                        <h3 className="font-semibold text-gray-900 mb-6 flex items-center gap-2">
-                            Your Profile So Far
-                        </h3>
-
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-center text-sm pb-3 border-b border-gray-100">
-                                <span className="text-gray-500">Persona</span>
-                                <span className="font-medium text-gray-900 flex items-center gap-1.5">Salaried <CheckCircle2 className="w-4 h-4 text-emerald-500" /></span>
-                            </div>
-
-                            <div className="flex justify-between items-center text-sm pb-3 border-b border-gray-100">
-                                <span className="text-gray-500">Gross Salary</span>
-                                {salary ? (
-                                    <span className="font-medium text-gray-900 flex items-center gap-1.5">{salary} <CheckCircle2 className="w-4 h-4 text-emerald-500" /></span>
-                                ) : (
-                                    <span className="text-gray-400 flex items-center gap-1.5">Awaiting... <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" /></span>
-                                )}
-                            </div>
-
-                            <div className="flex justify-between items-center text-sm pb-3 border-b border-gray-100">
-                                <span className="text-gray-500">Pays Rent</span>
-                                {rent ? (
-                                    <span className="font-medium text-gray-900 flex items-center gap-1.5">{rent.split(',')[0]} <CheckCircle2 className="w-4 h-4 text-emerald-500" /></span>
-                                ) : (
-                                    <span className="text-gray-400">Not asked yet</span>
-                                )}
-                            </div>
-
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-gray-500">Investments</span>
-                                <span className="text-gray-400">Not asked yet</span>
-                            </div>
-                        </div>
-
-                        <div className="mt-8 pt-6 border-t border-gray-100">
-                            <div className="flex justify-between text-xs font-medium text-gray-500 mb-2">
-                                <span>Profile Completeness</span>
-                                <span className="text-blue-600">{rent ? '60%' : salary ? '40%' : '20%'}</span>
-                            </div>
-                            <div className="w-full bg-gray-100 rounded-full h-1.5">
-                                <div
-                                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-500"
-                                    style={{ width: rent ? '60%' : salary ? '40%' : '20%' }}
+                                    type="number"
+                                    value={salary}
+                                    onChange={(e) => setSalary(e.target.value)}
+                                    placeholder="e.g. 1500000"
+                                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-gray-50 focus:bg-white transition-colors"
                                 />
                             </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Annual Rent Paid (₹)</label>
+                                <input
+                                    type="number"
+                                    value={rent === null ? '' : rent}
+                                    onChange={(e) => setRent(e.target.value)}
+                                    placeholder="e.g. 240000 (Leave blank if none)"
+                                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-gray-50 focus:bg-white transition-colors"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Total Deductions (80C, 80D, NPS, etc.) (₹)</label>
+                                <input
+                                    type="number"
+                                    value={userProfile?.deductions || ''}
+                                    onChange={(e) => setUserProfile({ ...userProfile, deductions: e.target.value })}
+                                    placeholder="e.g. 150000 (Leave blank if none)"
+                                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-gray-50 focus:bg-white transition-colors"
+                                />
+                            </div>
+
+                            <button
+                                onClick={nextStep}
+                                disabled={!salary}
+                                className="w-full bg-blue-600 text-white rounded-xl py-3.5 mt-4 font-semibold text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                            >
+                                Complete Profile & Goto Dashboard &rarr;
+                            </button>
                         </div>
                     </div>
-
                 </div>
             )}
         </div>

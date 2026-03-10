@@ -57,14 +57,20 @@ export default function CitationDrawer({ isOpen, onClose, citations = [] }) {
                                     "{cite.text}"
                                 </p>
 
-                                <a
-                                    href={cite.link || "#"}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
-                                >
-                                    Read full section <ExternalLink className="w-4 h-4" />
-                                </a>
+                                {cite.link && cite.link !== "#" ? (
+                                    <a
+                                        href={cite.link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                                    >
+                                        Read full section <ExternalLink className="w-4 h-4" />
+                                    </a>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-400">
+                                        Official link unavailable <ExternalLink className="w-4 h-4" />
+                                    </span>
+                                )}
                             </div>
                         ))
                     )}

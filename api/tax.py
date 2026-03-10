@@ -228,6 +228,48 @@ def calculate_hra(
     return HRAExemptionResponse(**result)
 
 
+@router.get("/chat/history")
+def get_chat_history():
+    """
+    Mock endpoint to return chat history for the frontend.
+    Normally this would fetch from the database based on the user JWT.
+    """
+    return [
+        {
+            "id": 1,
+            "role": "assistant",
+            "text": "Hi Rahul! I'm your AI Tax Copilot. I see your profile is set up as a Salaried Employee with ₹15L gross income. How can I help you save tax today?",
+            "time": "10:00 AM",
+        },
+        {
+            "id": 2,
+            "role": "user",
+            "text": "Should I claim HRA or buy a house on EMI to save more?",
+            "time": "10:02 AM",
+        },
+        {
+            "id": 3,
+            "role": "assistant",
+            "text": "That’s a great question. Since your rent is currently ₹20,000/month, your HRA exemption is limited to ₹1.2L annually.\n\nIf you buy a house on EMI (say, a ₹50L loan at 8.5%), you can claim up to ₹2L in interest deduction under Section 24B. This would reduce your total tax from ₹1.14L to ₹95,000.\n\nHowever, remember that home ownership comes with other costs. Want me to run a detailed comparison?",
+            "time": "10:03 AM",
+            "citations": [
+                {
+                    "section": "Section 24(b)", 
+                    "text": "Deduction of up to ₹2,00,000 is allowed on interest paid for a self-occupied property loan.", 
+                    "fy": "FY 2024-25", 
+                    "link": "https://incometaxindia.gov.in/tutorials/10.%20income-from-house-property.pdf" 
+                },
+                { 
+                    "section": "Section 10(13A)", 
+                    "text": "HRA exemption is the least of: actual HRA, 50% basic (metro) or rent paid minus 10% basic salary.", 
+                    "fy": "FY 2024-25", 
+                    "link": "https://incometaxindia.gov.in/tutorials/4.%20salary%20income.pdf" 
+                }
+            ]
+        }
+    ]
+
+
 @router.post("/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest):
     """
@@ -241,8 +283,8 @@ def chat(payload: ChatRequest):
     # 1. Mask PII before it reaches any LLM
     masked_query = mask_pii(payload.query)
 
-    # 2. Run the RAG pipeline
-    result = process_query(masked_query)
+    # 2. Run the RAG pipeline with user profile context
+    result = process_query(masked_query, payload.user_profile)
 
     # 3. Determine the answer text for validation
     answer = result.get("answer", result)

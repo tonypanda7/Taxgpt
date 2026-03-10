@@ -18,14 +18,14 @@ conversation_history = []
 
 # connect to chroma database
 client = chromadb.PersistentClient(path="kb")
-collection = client.get_collection("tax_kb")
+collection = client.get_or_create_collection("tax_kb")
 
 
 # ==============================
 # MAIN QUERY FUNCTION (FOR API)
 # ==============================
 
-def process_query(question):
+def process_query(question, user_profile=None):
     db = SessionLocal()
 
     profiles = db.query(FinancialProfile).all()
@@ -99,8 +99,10 @@ def process_query(question):
 
     gemini_context = get_gemini_context(question)
 
+    user_profile_str = f"User Profile Context:\n{user_profile}\n\n" if user_profile else ""
+
     final_context = f"""
-Database Context:
+{user_profile_str}Database Context:
 {context}
 
 External Knowledge:

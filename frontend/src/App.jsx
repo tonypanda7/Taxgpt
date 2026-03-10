@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 
@@ -11,6 +12,28 @@ import AdvanceTax from './pages/AdvanceTax';
 import Onboarding from './pages/Onboarding';
 import RegimeComparison from './pages/RegimeComparison';
 import TaxHealthScore from './pages/TaxHealthScore';
+import Login from './pages/Login';
+import Register from './pages/Register';
+
+function ProtectedRoute({ children }) {
+  const { user, isLoading } = useAuth();
+  const location = useLocation();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    // Redirect unauthenticated users to login
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return children;
+}
 
 function AppLayout() {
   return (
@@ -36,10 +59,36 @@ function AppLayout() {
 }
 
 function App() {
+  const { user } = useAuth();
+
   return (
     <Routes>
-      <Route path="/onboarding" element={<Onboarding />} />
-      <Route path="/*" element={<AppLayout />} />
+      {/* Public Routes */}
+      <Route path="/login" element={
+        user ? (user.persona ? <Navigate to="/dashboard" replace /> : <Navigate to="/onboarding" replace />) : <Login />
+      } />
+      <Route path="/register" element={
+        user ? (user.persona ? <Navigate to="/dashboard" replace /> : <Navigate to="/onboarding" replace />) : <Register />
+      } />
+
+      {/* Semi-Protected Onboarding */}
+      <Route path="/onboarding" element={
+        <ProtectedRoute>
+          <Onboarding />
+        </ProtectedRoute>
+      } />
+
+      {/* Main App Layout Routes */}
+      <Route path="/" element={
+        user
+          ? (user.persona ? <Navigate to="/dashboard" replace /> : <Navigate to="/onboarding" replace />)
+          : <Navigate to="/login" replace />
+      } />
+      <Route path="/*" element={
+        <ProtectedRoute>
+          <AppLayout />
+        </ProtectedRoute>
+      } />
     </Routes>
   );
 }
