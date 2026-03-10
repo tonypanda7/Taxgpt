@@ -293,7 +293,7 @@ def chat(payload: ChatRequest):
     # 4. Golden Rule validation on text answers
     validation = None
     if isinstance(answer, str):
-        val_result = validate_response(answer)
+        val_result = validate_response(answer, engine_output=payload.user_profile)
         validation = ValidationResult(
             is_valid=val_result["is_valid"],
             flagged_amounts=val_result["flagged_amounts"],

@@ -84,9 +84,6 @@ def process_query(question, user_profile=None):
     documents = [x[1] for x in top_chunks]
     sources = [x[2] for x in top_chunks]
 
-    if not documents:
-        return {"answer": "I don't know based on the knowledge base."}
-
     # ---------- BUILD CONTEXT ----------
 
     MAX_CONTEXT = 5000
