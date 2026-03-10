@@ -17,7 +17,7 @@ from db.models import FinancialProfile
 conversation_history = []
 
 # connect to chroma database
-client = chromadb.PersistentClient(path="kb")
+client = chromadb.PersistentClient(path="kb_v2")
 collection = client.get_or_create_collection("tax_kb")
 
 
