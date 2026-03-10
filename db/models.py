@@ -54,3 +54,17 @@ class FinancialProfile(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="financial_profiles")
+
+
+class ChatMessage(Base):
+    """Persists chat messages for conversation continuity."""
+    __tablename__ = "chat_messages"
+
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    session_id = Column(String, index=True)
+    user_id = Column(String, ForeignKey("users.id"))
+    role = Column(String)       # "user" or "assistant"
+    content = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User")

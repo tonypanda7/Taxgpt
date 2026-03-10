@@ -8,17 +8,17 @@ trigger: always_on
 - Backend: Python FastAPI
 - Database: SQLite (MVP) → PostgreSQL migration path via SQLAlchemy ORM + Alembic
 - AI — Document Extraction: Gemini 1.5 Flash (gemini-1.5-flash-latest)
-- AI — Response Generation: GPT-4o-mini
-- RAG: FAISS local vector store (MVP)
+- AI — Response Generation: Ollama (qwen2.5, local)
+- RAG: ChromaDB local vector store + nomic-embed-text embeddings
 - Auth: JWT (RS256), bcrypt password hashing
 
 ## Project Status
 - tax_engine.py: COMPLETE. Do not modify tax calculation logic without team discussion.
-- Chatbot (api/chat.py + ai/extractor.py + ai/responder.py): IN PROGRESS.
-- Document auto-parser: NOT STARTED. This is the active feature.
+- Chatbot (api/chat.py + ai/rag.py + ai/responder.py): IN PROGRESS. This is the active feature.
+- Document auto-parser: COMPLETE.
 
 ## Architecture — Golden Rule (NEVER violate)
-The AI layer (Gemini/GPT) NEVER produces tax figures.
+The AI layer (Gemini/Ollama) NEVER produces tax figures.
 All rupee amounts in any API response MUST be sourced from engine/tax_engine.py.
 ai/validator.py must run post-generation on every /chat response before it is returned.
 
@@ -35,7 +35,7 @@ taxcopilot-backend/
 ## Code Standards
 - All DB operations via SQLAlchemy ORM. No raw SQL strings in application code.
 - All API request/response bodies must be Pydantic v2 models.
-- PII masking via Presidio runs BEFORE any content reaches Gemini or GPT.
+- PII masking via Presidio runs BEFORE any content reaches Gemini or Ollama.
 - Every new endpoint needs a rate limit defined in security/rate_limiter.py.
 - Log with structlog. Never expose stack traces to API clients.
 - Engine version stored in every tax_calculations row (engine.MODULE_VERSION).
