@@ -6,12 +6,13 @@ from app.nlp.extract_financial_entities import extract_financial_entities
 from app.services.suggest_deductions import suggest_deductions
 from app.utils.gemini_context import get_gemini_context
 
-from app.engines.individual_tax import calculate_individual_tax
-from app.engines.business_tax import calculate_business_tax
-from app.engines.firm_tax import calculate_firm_tax
-from app.engines.worker_tax import calculate_worker_tax
-from app.engines.regime_compare import compare_regimes
-from app.database.user_data import SessionLocal, UserFinancialData
+from tax_engine.individual_tax import calculate_individual_tax
+from tax_engine.business_tax import calculate_business_tax
+from tax_engine.firm_tax import calculate_firm_tax
+from tax_engine.worker_tax import calculate_worker_tax
+from tax_engine.regime_compare import compare_regimes
+from db.database import SessionLocal
+from db.models import FinancialProfile
 
 conversation_history = []
 
@@ -27,14 +28,16 @@ collection = client.get_collection("tax_kb")
 def process_query(question):
     db = SessionLocal()
 
-    records = db.query(UserFinancialData).filter(
-        UserFinancialData.user_id == 1
-    ).all()
+    profiles = db.query(FinancialProfile).all()
 
     user_context = ""
 
-    for r in records:
-        user_context += str(r.data) + "\n"
+    for p in profiles:
+        user_context += (
+            f"FY: {p.financial_year}, Income: {p.total_income}, "
+            f"Deductions: {p.total_deductions}, TDS: {p.total_tds}, "
+            f"Old Tax: {p.calculated_old_tax}, New Tax: {p.calculated_new_tax}\n"
+        )
 
     db.close()
     intent = detect_intent(question)
