@@ -102,6 +102,21 @@ def validate_response(
         # Skip very small amounts (likely not tax figures)
         if amount < 100:
             continue
+            
+        # Whitelist common tax slab boundaries and related limits
+        COMMON_SLABS = {
+            # Standard limits
+            12500, 25000, 50000, 75000, 150000,
+            # Slabs
+            250000, 300000, 500000, 600000, 750000, 900000,
+            1000000, 1200000, 1250000, 1500000,
+            # Limits + 1 (often used in explanations like "income above 5,00,000")
+            250001, 300001, 500001, 600001, 750001, 900001,
+            1000001, 1200001, 1250001, 1500001
+        }
+        
+        if amount in COMMON_SLABS:
+            continue
         
         # Check if this amount matches any engine value within tolerance
         matched = any(abs(amount - eng_val) <= tolerance for eng_val in engine_amounts)

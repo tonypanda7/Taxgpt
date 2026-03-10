@@ -1,26 +1,33 @@
 import { useState, useEffect } from 'react';
 import { formatCurrency } from '../utils/formatCurrency';
 import { cn } from '../utils/cn';
-import { CheckCircle2, Edit2, History, Loader2 } from 'lucide-react';
+import { CheckCircle2, Edit2, History, Loader2, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { api } from '../utils/api';
+import { useChat } from '../context/ChatContext';
 
 export default function FinancialSummaryCard({ showOldRegime = false, onToggleRegime }) {
+    const { userProfile } = useChat();
     const [summaryData, setSummaryData] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchSummary = async () => {
-            try {
-                const data = await api.tax.getComparison();
-                setSummaryData(data);
-            } catch (error) {
-                console.error("Failed to load financial summary", error);
-            } finally {
-                setLoading(false);
+            if (userProfile && userProfile.salary) {
+                try {
+                    const cleanSalary = parseFloat(userProfile.salary.toString().replace(/,/g, ''));
+                    const cleanDeductions = userProfile.deductions ? parseFloat(userProfile.deductions.toString().replace(/,/g, '')) : 0;
+
+                    const data = await api.tax.getComparison(cleanSalary, cleanDeductions);
+                    setSummaryData(data);
+                } catch (error) {
+                    console.error("Failed to load financial summary", error);
+                }
             }
+            setLoading(false);
         };
         fetchSummary();
-    }, []);
+    }, [userProfile]);
 
     if (loading) {
         return (
@@ -33,8 +40,20 @@ export default function FinancialSummaryCard({ showOldRegime = false, onToggleRe
 
     if (!summaryData) {
         return (
-            <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center p-6 text-center h-[500px] sticky top-6">
-                <p className="text-sm font-medium text-gray-500">Please complete onboarding to generate your profile.</p>
+            <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center p-8 text-center h-[500px] sticky top-6 gap-4">
+                <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center">
+                    <Edit2 className="w-6 h-6 text-blue-500" />
+                </div>
+                <div>
+                    <p className="text-base font-semibold text-gray-900 mb-1">Profile Incomplete</p>
+                    <p className="text-sm text-gray-500 max-w-xs">Complete the onboarding flow so we can calculate your taxes under both regimes.</p>
+                </div>
+                <Link
+                    to="/onboarding"
+                    className="inline-flex items-center gap-2 bg-blue-600 text-white font-semibold text-sm px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                    Complete Profile <ArrowRight className="w-4 h-4" />
+                </Link>
             </div>
         );
     }

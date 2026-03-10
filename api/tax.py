@@ -89,32 +89,40 @@ def _build_reason(recommended, savings, income):
 
 @router.get("/comparison", response_model=RegimeComparisonResponse)
 def get_regime_comparison(
+    income: float = None,
+    deductions: float = None,
     financial_year: str = "FY2024-25",
     db: Session = Depends(get_db)
 ):
     """
-    Compare Old vs New tax regime for the user's current FinancialProfile.
+    Compare Old vs New tax regime.
     Returns full breakdown, recommendation, savings, and deduction opportunities.
     """
     
-    # Use mock user for now (no JWT auth yet)
-    user = db.query(User).first()
-    if not user:
-        raise HTTPException(status_code=400, detail="No user found.")
-    
-    profile = db.query(FinancialProfile).filter(
-        FinancialProfile.user_id == user.id,
-        FinancialProfile.financial_year == financial_year
-    ).first()
-    
-    if not profile:
-        raise HTTPException(
-            status_code=400,
-            detail=f"No FinancialProfile found for {financial_year}. Upload and confirm documents first."
-        )
+    if income is not None:
+        calc_income = income
+        calc_deductions = deductions or 0.0
+    else:
+        # Use mock user for now (no JWT auth yet)
+        user = db.query(User).first()
+        if not user:
+            raise HTTPException(status_code=400, detail="No user found.")
+        
+        profile = db.query(FinancialProfile).filter(
+            FinancialProfile.user_id == user.id,
+            FinancialProfile.financial_year == financial_year
+        ).first()
+        
+        if not profile:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No FinancialProfile found for {financial_year}. Upload and confirm documents first."
+            )
+        calc_income = profile.total_income
+        calc_deductions = profile.total_deductions
     
     # 1. Call tax engine
-    result = compare_regimes(profile.total_income, profile.total_deductions)
+    result = compare_regimes(calc_income, calc_deductions)
     
     # 2. Build breakdowns
     old = result["old_regime"]
@@ -145,13 +153,13 @@ def get_regime_comparison(
     )
     
     # 3. Compute breakeven
-    breakeven = _compute_breakeven(profile.total_income, profile.total_deductions)
+    breakeven = _compute_breakeven(calc_income, calc_deductions)
     
     # 4. Build reason string
-    reason = _build_reason(result["recommended_regime"], result["savings"], profile.total_income)
+    reason = _build_reason(result["recommended_regime"], result["savings"], calc_income)
     
     # 5. Get deduction suggestions
-    raw_suggestions = suggest_deductions(profile.total_deductions)
+    raw_suggestions = suggest_deductions(calc_deductions)
     deduction_opps = [
         DeductionOpportunity(**s) for s in raw_suggestions
     ]

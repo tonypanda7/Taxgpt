@@ -7,9 +7,14 @@ export function ChatProvider({ children }) {
 
     // Track the user's financial profile parameters shared during onboarding or chats
     const [userProfile, setUserProfile] = useState({
-        gross_income: null,
+        salary: null,
+        basic_salary: null,
+        hra_received: null,
         rent_paid: null,
-        deductions: null,
+        section_80c: null,
+        section_80d: null,
+        other_deductions: null,
+        deductions: null,       // total deductions computed at onboarding end
         financial_year: 'FY 2024-25'
     });
 

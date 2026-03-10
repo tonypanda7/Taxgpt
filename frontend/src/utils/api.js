@@ -37,11 +37,14 @@ export const api = {
             ];
         }
     },
-    // Tax API
     tax: {
-        getComparison: async () => {
+        getComparison: async (income, deductions) => {
             try {
-                const response = await apiClient.get('/tax/comparison');
+                let url = '/tax/comparison';
+                if (income !== undefined && income !== null) {
+                    url += `?income=${income}&deductions=${deductions || 0}`;
+                }
+                const response = await apiClient.get(url);
                 return response.data;
             } catch (error) {
                 console.error('Error fetching tax comparison:', error);

@@ -1,9 +1,34 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Lightbulb, Info, FileText, ArrowRight, ShieldCheck, Zap, Activity, Calendar } from 'lucide-react';
+import { Lightbulb, Info, FileText, ArrowRight, ShieldCheck, Zap, Activity, Calendar, Loader2 } from 'lucide-react';
 import HealthGauge from '../components/HealthGauge';
 import DeductionGapBar from '../components/DeductionGapBar';
+import { useChat } from '../context/ChatContext';
+import { api } from '../utils/api';
+import { formatCurrency } from '../utils/formatCurrency';
 
 export default function Dashboard() {
+    const { userProfile } = useChat();
+    const [summary, setSummary] = useState(null);
+    const [loadingSummary, setLoadingSummary] = useState(true);
+
+    useEffect(() => {
+        const fetchSummary = async () => {
+            if (userProfile && userProfile.salary) {
+                try {
+                    const cleanSalary = parseFloat(userProfile.salary.toString().replace(/,/g, ''));
+                    const cleanDeductions = userProfile.deductions ? parseFloat(userProfile.deductions.toString().replace(/,/g, '')) : 0;
+
+                    const data = await api.tax.getComparison(cleanSalary, cleanDeductions);
+                    setSummary(data);
+                } catch (e) {
+                    console.error("Failed to fetch summary data", e);
+                }
+            }
+            setLoadingSummary(false);
+        };
+        fetchSummary();
+    }, [userProfile]);
     return (
         <div className="max-w-6xl mx-auto space-y-6">
 
@@ -21,39 +46,69 @@ export default function Dashboard() {
                 </div>
 
                 {/* Regime Recommendation */}
-                <div className="lg:col-span-2 bg-gradient-to-br from-blue-900 to-indigo-900 p-8 rounded-2xl shadow-sm text-white relative overflow-hidden flex flex-col justify-center">
+                <div className="lg:col-span-2 bg-gradient-to-br from-blue-900 to-indigo-900 p-8 rounded-2xl shadow-sm text-white relative overflow-hidden flex flex-col justify-center min-h-[200px]">
                     <div className="absolute right-0 top-0 w-64 h-64 bg-blue-500 rounded-full blur-3xl opacity-20 transform translate-x-1/2 -translate-y-1/2"></div>
 
-                    <div className="flex items-start gap-3 mb-2">
-                        <div className="bg-emerald-400/20 text-emerald-300 p-1.5 rounded-full mt-1">
-                            <ShieldCheck className="w-5 h-5" />
+                    {loadingSummary ? (
+                        <div className="flex items-center justify-center h-full w-full z-10">
+                            <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
                         </div>
-                        <div>
-                            <h2 className="text-2xl font-bold tracking-tight mb-1">New Regime saves you ₹23,400</h2>
-                            <p className="text-blue-200">Based on your current salary and declared deductions.</p>
-                        </div>
-                    </div>
+                    ) : summary ? (
+                        <div className="z-10 w-full">
+                            <div className="flex items-start gap-3 mb-2">
+                                <div className="bg-emerald-400/20 text-emerald-300 p-1.5 rounded-full mt-1">
+                                    <ShieldCheck className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-bold tracking-tight mb-1">
+                                        {summary.recommended_regime === 'new' ? 'New' : 'Old'} Regime saves you {formatCurrency(summary.savings)}
+                                    </h2>
+                                    <p className="text-blue-200">Based on your current salary and declared deductions.</p>
+                                </div>
+                            </div>
 
-                    <div className="mt-8 flex items-end gap-8">
-                        <div className="flex-1">
-                            <div className="flex justify-between text-sm mb-2 text-blue-200">
-                                <span>Old Regime</span>
-                                <span className="font-medium text-white opacity-60">₹1,37,500</span>
-                            </div>
-                            <div className="w-full h-3 bg-blue-950/50 rounded-full overflow-hidden">
-                                <div className="bg-blue-300 h-full w-[85%] rounded-full opacity-60"></div>
+                            <div className="mt-8 flex items-end gap-8">
+                                <div className="flex-1">
+                                    <div className="flex justify-between text-sm mb-2 font-medium">
+                                        <span className={summary.recommended_regime === 'old' ? 'text-emerald-300' : 'text-blue-200'}>Old Regime</span>
+                                        <span className={summary.recommended_regime === 'old' ? 'text-white' : 'text-white opacity-60'}>
+                                            {formatCurrency(summary.old_regime.total_tax)}
+                                        </span>
+                                    </div>
+                                    <div className="w-full h-3 bg-blue-950/50 rounded-full overflow-hidden flex items-center">
+                                        <div className={summary.recommended_regime === 'old' ? 'bg-emerald-400 h-full w-[85%] rounded-full shadow-[0_0_10px_rgba(52,211,153,0.5)]' : 'bg-blue-300 h-full w-[70%] rounded-full opacity-60'}></div>
+                                    </div>
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex justify-between text-sm mb-2 font-medium">
+                                        <span className={summary.recommended_regime === 'new' ? 'text-emerald-300' : 'text-blue-200'}>New Regime</span>
+                                        <span className={summary.recommended_regime === 'new' ? 'text-white' : 'text-white opacity-60'}>
+                                            {formatCurrency(summary.new_regime.total_tax)}
+                                        </span>
+                                    </div>
+                                    <div className="w-full h-4 bg-emerald-950/50 rounded-full overflow-hidden shadow-inner flex items-center p-0.5">
+                                        <div className={summary.recommended_regime === 'new' ? 'bg-emerald-400 h-full w-[85%] rounded-full shadow-[0_0_10px_rgba(52,211,153,0.5)]' : 'bg-blue-300 h-full w-[70%] rounded-full opacity-60'}></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div className="flex-1">
-                            <div className="flex justify-between text-sm mb-2 font-medium text-emerald-300">
-                                <span>New Regime</span>
-                                <span className="text-white">₹1,14,100</span>
+                    ) : (
+                        <div className="z-10 flex flex-col items-center justify-center text-center gap-4 py-4">
+                            <div className="bg-blue-800/50 rounded-full p-3">
+                                <ShieldCheck className="w-8 h-8 text-blue-300" />
                             </div>
-                            <div className="w-full h-4 bg-emerald-950/50 rounded-full overflow-hidden shadow-inner flex items-center p-0.5">
-                                <div className="bg-emerald-400 h-full w-[70%] rounded-full shadow-[0_0_10px_rgba(52,211,153,0.5)]"></div>
+                            <div>
+                                <p className="text-white font-semibold text-lg mb-1">Setup Required</p>
+                                <p className="text-blue-300 text-sm max-w-md">Tell us about your income and deductions so we can compare the Old vs New tax regime for you.</p>
                             </div>
+                            <Link
+                                to="/onboarding"
+                                className="mt-2 inline-flex items-center gap-2 bg-white text-blue-900 font-semibold text-sm px-6 py-3 rounded-xl hover:bg-blue-50 transition-colors shadow-md"
+                            >
+                                Complete Onboarding <ArrowRight className="w-4 h-4" />
+                            </Link>
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
 
