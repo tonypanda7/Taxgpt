@@ -29,14 +29,17 @@ Question:
 {question}
 """
 
-    response = model.generate_content(prompt)
+    try:
+        response = model.generate_content(prompt)
+        text = response.text
 
-    text = response.text
+        # Hard safety limit
+        words = text.split()
 
-    # Hard safety limit
-    words = text.split()
+        if len(words) > 200:
+            text = " ".join(words[:200])
 
-    if len(words) > 200:
-        text = " ".join(words[:200])
-
-    return text
+        return text
+    except Exception as e:
+        print(f"Failed to fetch from Gemini (quota/capacity issue?): {e}")
+        return ""
