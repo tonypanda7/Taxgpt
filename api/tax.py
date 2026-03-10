@@ -8,10 +8,14 @@ from schemas.tax import (
     AdvanceTaxResponse, AdvanceTaxInstallment,
     HRAExemptionResponse
 )
+from schemas.chat import ChatRequest, ChatResponse, ValidationResult
 from tax_engine.regime_compare import compare_regimes
 from tax_engine.individual_tax import MODULE_VERSION, calculate_individual_tax, calculate_hra_exemption
 from tax_engine.advance_tax import calculate_advance_tax
 from scripts.suggest_deductions import suggest_deductions
+from security.pii_masker import mask_pii
+from ai.validator import validate_response, sanitize_response
+from app.rag.query_kb import process_query
 
 router = APIRouter(prefix="/tax", tags=["tax"])
 
@@ -222,3 +226,44 @@ def calculate_hra(
     """
     result = calculate_hra_exemption(basic_salary, hra_received, rent_paid, is_metro)
     return HRAExemptionResponse(**result)
+
+
+@router.post("/chat", response_model=ChatResponse)
+def chat(payload: ChatRequest):
+    """
+    RAG-powered tax chatbot.
+    Accepts a natural-language tax question, runs it through the RAG pipeline
+    (ChromaDB + Ollama), and returns an AI-generated answer grounded in
+    Indian tax law.  PII is masked before any LLM call, and the response is
+    validated against the Golden Rule (no hallucinated rupee figures).
+    """
+
+    # 1. Mask PII before it reaches any LLM
+    masked_query = mask_pii(payload.query)
+
+    # 2. Run the RAG pipeline
+    result = process_query(masked_query)
+
+    # 3. Determine the answer text for validation
+    answer = result.get("answer", result)
+    sources = result.get("sources") if isinstance(result, dict) else None
+
+    # 4. Golden Rule validation on text answers
+    validation = None
+    if isinstance(answer, str):
+        val_result = validate_response(answer)
+        validation = ValidationResult(
+            is_valid=val_result["is_valid"],
+            flagged_amounts=val_result["flagged_amounts"],
+            warning=val_result.get("warning"),
+        )
+        # Append disclaimer if validation fails
+        if not val_result["is_valid"]:
+            answer = sanitize_response(answer, engine_output=None)
+
+    return ChatResponse(
+        question=payload.query,
+        answer=answer,
+        sources=sources,
+        validation=validation,
+    )

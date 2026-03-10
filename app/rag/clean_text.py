@@ -1,85 +1,77 @@
 import os
-import json
 import re
-import hashlib
+import json
 
-input_folder = "data/cleaned"
-output_file = "data/chunks/all_chunks.json"
+raw_folder = "data/raw"
+clean_folder = "data/cleaned"
 
-os.makedirs("data/chunks", exist_ok=True)
-
-
-def chunk_text(text, chunk_size=330, overlap=50):
-
-    sentences = re.split(r'(?<=[.!?]) +', text)
-
-    chunks = []
-    current = []
-
-    for sentence in sentences:
-
-        words = sentence.split()
-
-        if len(current) + len(words) <= chunk_size:
-            current.extend(words)
-
-        else:
-
-            chunk = " ".join(current)
-            chunks.append(chunk)
-
-            current = current[-overlap:] + words
-
-    if current:
-        chunks.append(" ".join(current))
-
-    return chunks
+os.makedirs(clean_folder, exist_ok=True)
 
 
-all_chunks = []
-seen = set()
+def clean_text(text):
+
+    # remove urls
+    text = re.sub(r'http\S+', '', text)
+
+    # remove navigation / UI text commonly scraped
+    noise_patterns = [
+        r'Home\s+About\s+Contact',
+        r'Last Updated.*',
+        r'Copyright.*',
+        r'Skip to main content',
+        r'Back to top',
+        r'Privacy Policy',
+        r'Terms and Conditions'
+    ]
+
+    for pattern in noise_patterns:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+
+    # normalize spaces
+    text = re.sub(r'\s+', ' ', text)
+
+    # restore line breaks around headings
+    text = re.sub(r'\. ', '.\n', text)
+
+    lines = text.split("\n")
+    cleaned_lines = []
+
+    for line in lines:
+        line = line.strip()
+
+        # remove very short lines (navigation etc.)
+        if len(line) < 20:
+            continue
+
+        cleaned_lines.append(line)
+
+    return "\n".join(cleaned_lines)
 
 
-for file in os.listdir(input_folder):
+for file in os.listdir(raw_folder):
 
     if not file.endswith(".json"):
         continue
 
-    path = os.path.join(input_folder, file)
+    input_path = os.path.join(raw_folder, file)
+    output_path = os.path.join(clean_folder, file)
 
-    with open(path, encoding="utf-8") as f:
+    with open(input_path, encoding="utf-8") as f:
         data = json.load(f)
 
     text = data["text"]
 
-    if len(text) < 200:
-        continue
+    cleaned = clean_text(text)
 
-    url = data["url"]
-    domain = data["domain"]
+    cleaned_data = {
+        "url": data["url"],
+        "domain": data["domain"],
+        "text": cleaned
+    }
 
-    chunks = chunk_text(text)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(cleaned_data, f, indent=2)
 
-    for i, chunk in enumerate(chunks):
+    print("Cleaned:", file)
 
-        # hash for duplicate detection
-        h = hashlib.md5(chunk.encode()).hexdigest()
-
-        if h in seen:
-            continue
-
-        seen.add(h)
-
-        all_chunks.append({
-            "id": f"{file}_{i}",
-            "text": chunk,
-            "url": url,
-            "domain": domain
-        })
-
-
-with open(output_file, "w", encoding="utf-8") as f:
-    json.dump(all_chunks, f, indent=2)
-
-
-print("Total chunks created:", len(all_chunks))
+print("All pages cleaned.")
